@@ -75,7 +75,10 @@ def on_message(mqttc, obj, msg):
     topic = msg.topic
     payload = msg.payload.decode("utf-8")
 
-    if payload == 'getimage' and not curr_frame is None:
+    if payload == 'getimage':
+        if curr_frame is None:
+            return
+
         jpeg = base64.b64encode(curr_frame).decode('utf-8')
         image_payload = {'timestamp':curr_timestamp.isoformat(timespec='milliseconds').replace("+00:00", "Z"), 'id':instance_id, 'image':jpeg}
         mqttc.publish(image_topic, json.dumps(image_payload))
