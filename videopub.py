@@ -129,7 +129,7 @@ while(1):
     jpg = base64.b64encode(curr_frame).decode('utf-8')
 
     curr_timestamp = datetime.now(timezone.utc)
-    timestamp_str = curr_timestamp.isoformat(timespec='milliseconds').replace("+00:00", "Z")
+    timestamp_str = curr_timestamp.isoformat(timespec='milliseconds')
 
     mqtt_payload = {"timestamp":timestamp_str,"id":instance_id,"height":height,"width":width,"frame":jpg}
     mqttc.publish(mqtt_topic, json.dumps(mqtt_payload))
