@@ -32,7 +32,7 @@ parser.add_argument('--topic', required=False, default='stream', help='Specify t
 parser.add_argument('--id', required=True, help='Unique stream identifier for MQTT topic')
 parser.add_argument('--width', required=False, help='Specify desired input image width', type=int)
 parser.add_argument('--height', required=False, help='Specify desired input image height', type=int)
-parser.add_argument('--threads', required=False, help='Limit CPU usage for camera processing', default=10, type=int)
+parser.add_argument('--threads', required=False, help='Limit CPU usage for camera processing', default=2, type=int)
 parser.add_argument('--mqtt_address', required=False, default='localhost',  help='MQTT broker address. default: localhost')
 parser.add_argument('--mqtt_port', required=False, default=1883, help='MQTT port. default: 1883')
 parser.add_argument('--mqtt_username', required=False, default='',  help='MQTT username.')
@@ -45,10 +45,13 @@ args = vars(parser.parse_args())
 instance_id = args.get('id')
 header = args.get('header')
 topic = args.get('topic')
+scale_width = args.get('width')
+scale_height = args.get('height')
 mqtt_address = args.get('mqtt_address')
 mqtt_port = args.get('mqtt_port')
 mqtt_username = args.get('mqtt_username')
 mqtt_password = args.get('mqtt_password')
+num_threads = args.get('threads')
 
 mqtt_topic = ''.join([header, "/", topic, "/", instance_id])
 command_topic = ''.join([header, "/", "cmd", "/", "sensor", "/", "cam", "/", instance_id])
@@ -90,7 +93,7 @@ mqttc.connect(mqtt_address, int(mqtt_port), 60)
 mqttc.subscribe(command_topic, 0)
 
 # Limit OpenCV thread pool
-cv2.setNumThreads(args['threads'])
+cv2.setNumThreads(num_threads)
 
 vcap = cv2.VideoCapture()
 status = vcap.open(args['input'])
@@ -119,17 +122,18 @@ while(1):
         if not status:
             quit()
 
+    curr_timestamp = datetime.now(timezone.utc)
+    timestamp_str = datetime.now(timezone.utc).isoformat(timespec='milliseconds')
+
     # Scale if requested
-    if args.get('width') and args.get('height'):
-        img = cv2.resize(img, (args.get('width'), args.get('height')))
+    if scale_width and scale_height:
+        img = cv2.resize(img, (scale_width, scale_height))
 
     # Encode frame to JPEG
-    ret, curr_frame = cv2.imencode(".jpg", img)
+    ret, jpg = cv2.imencode(".jpg", img)
     height, width, channels = img.shape
-    jpg = base64.b64encode(curr_frame).decode('utf-8')
-
-    curr_timestamp = datetime.now(timezone.utc)
-    timestamp_str = curr_timestamp.isoformat(timespec='milliseconds')
+    jpg = base64.b64encode(jpg).decode('utf-8')
+    curr_frame = jpg
 
     mqtt_payload = {"timestamp":timestamp_str,"id":instance_id,"height":height,"width":width,"frame":jpg}
     mqttc.publish(mqtt_topic, json.dumps(mqtt_payload))
