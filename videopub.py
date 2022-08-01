@@ -20,6 +20,7 @@ import cv2
 import json
 import os
 import paho.mqtt.client as mqtt
+import pybase64
 import ssl
 from datetime import datetime, timezone
 
@@ -76,8 +77,7 @@ def on_message(mqttc, obj, msg):
         if curr_frame is None:
             return
 
-        jpeg = base64.b64encode(curr_frame).decode('utf-8')
-        image_payload = {'timestamp':curr_timestamp.isoformat(timespec='milliseconds').replace("+00:00", "Z"), 'id':instance_id, 'image':jpeg}
+        image_payload = {'timestamp':curr_timestamp.isoformat(timespec='milliseconds').replace("+00:00", "Z"), 'id':instance_id, 'image':curr_frame}
         mqttc.publish(image_topic, json.dumps(image_payload))
 
 mqttc = mqtt.Client()
@@ -132,7 +132,7 @@ while(1):
     # Encode frame to JPEG
     ret, jpg = cv2.imencode(".jpg", img)
     height, width, channels = img.shape
-    jpg = base64.b64encode(jpg).decode('utf-8')
+    jpg = pybase64.b64encode(jpg).decode('utf-8')
     curr_frame = jpg
 
     mqtt_payload = {"timestamp":timestamp_str,"id":instance_id,"height":height,"width":width,"frame":jpg}
