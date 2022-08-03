@@ -1,4 +1,3 @@
-opencv-python-headless
 paho-mqtt
 pybase64
 python-dateutil

@@ -21,7 +21,11 @@ import json
 import os
 import paho.mqtt.client as mqtt
 import pybase64
+import queue
+import simplejpeg
 import ssl
+import threading
+import time
 from datetime import datetime, timezone
 
 parser = argparse.ArgumentParser(description='Video Publisher')
@@ -33,7 +37,7 @@ parser.add_argument('--topic', required=False, default='stream', help='Specify t
 parser.add_argument('--id', required=True, help='Unique stream identifier for MQTT topic')
 parser.add_argument('--width', required=False, help='Specify desired input image width', type=int)
 parser.add_argument('--height', required=False, help='Specify desired input image height', type=int)
-parser.add_argument('--threads', required=False, help='Limit CPU usage for camera processing', default=2, type=int)
+parser.add_argument('--threads', required=False, help='Limit CPU usage for camera processing', default=4, type=int)
 parser.add_argument('--mqtt_address', required=False, default='localhost',  help='MQTT broker address. default: localhost')
 parser.add_argument('--mqtt_port', required=False, default=1883, help='MQTT port. default: 1883')
 parser.add_argument('--mqtt_username', required=False, default='',  help='MQTT username.')
@@ -41,6 +45,7 @@ parser.add_argument('--mqtt_password', required=False, default='',  help='MQTT p
 parser.add_argument('--mqtt_tls', default=False, action='store_true', help='use TLS communication for MQTT')
 parser.add_argument('--perf_stats', default=False, action='store_true', help='Print performance statistics')
 parser.add_argument('--debug', default=False, action='store_true', help='Print debug information')
+parser.add_argument('--hw', default=False, action='store_true', help='Use hardware acceleration if available')
 args = vars(parser.parse_args())
 
 instance_id = args.get('id')
@@ -53,6 +58,8 @@ mqtt_port = args.get('mqtt_port')
 mqtt_username = args.get('mqtt_username')
 mqtt_password = args.get('mqtt_password')
 num_threads = args.get('threads')
+perf_stats = args.get('perf_stats')
+hwaccel = args.get('hw')
 
 mqtt_topic = ''.join([header, "/", topic, "/", instance_id])
 command_topic = ''.join([header, "/", "cmd", "/", "sensor", "/", "cam", "/", instance_id])
@@ -61,6 +68,50 @@ image_topic = ''.join([header, "/", "image", "/", "sensor", "/", "cam", "/", ins
 # Camera frame & timestamp
 curr_frame = None
 curr_timestamp = None
+
+def frame_worker():
+    while True:
+        data = q.get()
+
+        timestamp = data[0]
+        key_frame = data[1]
+        frame = data[2]
+
+        # Scale if requested
+        if scale_width and scale_height:
+            frame = cv2.resize(frame, (scale_width, scale_height))
+
+        # Encode frame to JPEG
+        height, width, channels = frame.shape
+
+        if perf_stats:
+            start_time = time.perf_counter()
+
+        jpg = simplejpeg.encode_jpeg(
+            frame,
+            quality=85,
+            colorspace='BGR',
+            colorsubsampling='420',
+            fastdct=True,
+        )
+
+        jpg = pybase64.b64encode(jpg).decode('utf-8')
+
+        if perf_stats:
+            end_time = time.perf_counter()
+            duration = (end_time - start_time) * 1000
+            print('Processing time: {:.2f} ms; speed {:.2f} fps'.format(round(duration, 2), round(1000 / duration, 2)))
+
+        if key_frame > 0:
+            curr_frame = jpg
+            curr_timestamp = timestamp
+
+        timestamp_str = timestamp.isoformat(timespec='milliseconds')
+
+        mqtt_payload = {"timestamp":timestamp_str,"id":instance_id,"height":height,"width":width,"frame":jpg}
+        mqttc.publish(mqtt_topic, json.dumps(mqtt_payload))
+
+        q.task_done()
 
 #
 # Create MQTT client
@@ -95,13 +146,24 @@ mqttc.subscribe(command_topic, 0)
 # Limit OpenCV thread pool
 cv2.setNumThreads(num_threads)
 
+# Initialise worker queue
+q = queue.Queue(maxsize=0)
+
 vcap = cv2.VideoCapture()
-status = vcap.open(args['input'])
+status = vcap.open(args['input'], cv2.CAP_ANY, (cv2.CAP_PROP_HW_ACCELERATION, cv2.VIDEO_ACCELERATION_ANY if hwaccel else cv2.VIDEO_ACCELERATION_NONE))
+
+print("Using video backend:", vcap.getBackendName())
 
 # Test for camera stream
 if not status:
     print('Failed to open video stream... quitting!')
     quit()
+
+#Starting worker threads
+for i in range(num_threads):
+    worker = threading.Thread(target=frame_worker, args=())
+    worker.setDaemon(True)
+    worker.start()
 
 print('Start video capture...')
 
@@ -122,18 +184,7 @@ while(1):
         if not status:
             quit()
 
-    curr_timestamp = datetime.now(timezone.utc)
-    timestamp_str = datetime.now(timezone.utc).isoformat(timespec='milliseconds')
+    timestamp = datetime.now(timezone.utc)
 
-    # Scale if requested
-    if scale_width and scale_height:
-        img = cv2.resize(img, (scale_width, scale_height))
-
-    # Encode frame to JPEG
-    ret, jpg = cv2.imencode(".jpg", img)
-    height, width, channels = img.shape
-    jpg = pybase64.b64encode(jpg).decode('utf-8')
-    curr_frame = jpg
-
-    mqtt_payload = {"timestamp":timestamp_str,"id":instance_id,"height":height,"width":width,"frame":jpg}
-    mqttc.publish(mqtt_topic, json.dumps(mqtt_payload))
+    q.put( (timestamp, vcap.get(cv2.CAP_PROP_LRF_HAS_KEY_FRAME), img) )
+    
