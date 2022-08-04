@@ -71,32 +71,6 @@ image_topic = ''.join([header, "/", "image", "/", "sensor", "/", "cam", "/", ins
 curr_frame = None
 curr_timestamp = None
 
-def video_capture():
-    while(1):
-        start_time = time.perf_counter()
-        status, img = vcap.read()
-
-        if not status:
-            # Loop video is applicable
-            if not args.get('loop'):
-                print('No more frames available... Quitting!')
-                quit()
-
-            vcap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            status, img = vcap.read()
-
-            if not status:
-                quit()
-
-        timestamp = datetime.now(timezone.utc)
-
-        q.put( (timestamp, vcap.get(cv2.CAP_PROP_LRF_HAS_KEY_FRAME), img) )
-
-        end_time = time.perf_counter()
-        duration = (end_time - start_time)
-        timeout = max(0, (frame_rate - duration))
-        time.sleep(timeout)
-
 def frame_worker():
     while True:
         data = q.get()
@@ -198,9 +172,30 @@ if frame_rate > 0:
 
 print('Start video capture...')
 
-video_capture = threading.Thread(target=video_capture, daemon=True)
-video_capture.start()
+mqttc.loop_start()
 
-mqttc.loop_forever()
+while(1):
+    start_time = time.perf_counter()
+    status, img = vcap.read()
 
-video_capture.stop()
+    if not status:
+        # Loop video is applicable
+        if not args.get('loop'):
+            print('No more frames available... Quitting!')
+            quit()
+
+        vcap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        status, img = vcap.read()
+
+        if not status:
+            quit()
+
+    timestamp = datetime.now(timezone.utc)
+
+    q.put( (timestamp, vcap.get(cv2.CAP_PROP_LRF_HAS_KEY_FRAME), img) )
+
+    end_time = time.perf_counter()
+    duration = (end_time - start_time)
+    timeout = max(0, (frame_rate - duration))
+    time.sleep(timeout)
+

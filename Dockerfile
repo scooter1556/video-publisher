@@ -32,6 +32,34 @@ ARG FFMPEG_CONFIG="\
     --enable-vaapi \
 "
 
+ARG CMAKE_ARGS="\
+    -DWITH_JPEG=ON \
+    -DWITH_FFMPEG=ON \
+    -DWITH_V4L=ON \
+    -DWITH_1394=OFF \
+    -DWITH_VTK=OFF \
+    -DWITH_EIGEN=OFF \
+    -DWITH_GSTREAMER=OFF \
+    -DWITH_GTK=OFF \
+    -DWITH_IPP=OFF \
+    -DWITH_OPENVINO=OFF \
+    -DWITH_JASPER=OFF \
+    -DWITH_OPENJPEG=OFF \
+    -DWITH_OPENEXR=OFF \
+    -DWITH_TIFF=OFF \
+    -DWITH_OPENCLAMDFFT=OFF \
+    -DWITH_OPENCLAMDBLAS=OFF \
+    -DWITH_LAPACK=OFF \
+    -DWITH_ITT=OFF \
+    -DWITH_PROTOBUF=OFF \
+    -DWITH_IMGCODEC_HDR=OFF \
+    -DWITH_IMGCODEC_SUNRASTER=OFF \
+    -DWITH_IMGCODEC_PXM=OFF \
+    -DWITH_IMGCODEC_PFM=OFF \
+    -DWITH_QUIRC=OFF \
+    -DWITH_OBSENSOR=OFF \
+"
+
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt update && apt install ${BUILD_DEPS} -y && rm -rf /var/lib/apt/lists/*
@@ -77,7 +105,6 @@ RUN git clone --recursive https://github.com/opencv/opencv-python.git -b ${OPENC
     cd opencv-python && \
     export ENABLE_HEADLESS=1 && \
     export ENABLE_CONTRIB=0 && \
-    export CMAKE_ARGS="-DWITH_JPEG=ON -DWITH_FFMPEG=ON -DWITH_V4L=ON" && \
     python3 -m pip wheel . --verbose
 
 FROM ubuntu:20.04
@@ -88,7 +115,7 @@ ARG DEPS="\
     libdrm2 \
 "
 
-ADD . /app
+COPY *.py *.txt /app/
 
 ENV DEBIAN_FRONTEND=noninteractive
 
