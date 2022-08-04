@@ -37,6 +37,7 @@ parser.add_argument('--topic', required=False, default='stream', help='Specify t
 parser.add_argument('--id', required=True, help='Unique stream identifier for MQTT topic')
 parser.add_argument('--width', required=False, help='Specify desired input image width', type=int)
 parser.add_argument('--height', required=False, help='Specify desired input image height', type=int)
+parser.add_argument('--frame_rate', required=False, default=0, help='Limit frame rate of input', type=int)
 parser.add_argument('--threads', required=False, help='Limit CPU usage for camera processing', default=4, type=int)
 parser.add_argument('--mqtt_address', required=False, default='localhost',  help='MQTT broker address. default: localhost')
 parser.add_argument('--mqtt_port', required=False, default=1883, help='MQTT port. default: 1883')
@@ -53,6 +54,7 @@ header = args.get('header')
 topic = args.get('topic')
 scale_width = args.get('width')
 scale_height = args.get('height')
+frame_rate = args.get('frame_rate')
 mqtt_address = args.get('mqtt_address')
 mqtt_port = args.get('mqtt_port')
 mqtt_username = args.get('mqtt_username')
@@ -68,6 +70,32 @@ image_topic = ''.join([header, "/", "image", "/", "sensor", "/", "cam", "/", ins
 # Camera frame & timestamp
 curr_frame = None
 curr_timestamp = None
+
+def video_capture():
+    while(1):
+        start_time = time.perf_counter()
+        status, img = vcap.read()
+
+        if not status:
+            # Loop video is applicable
+            if not args.get('loop'):
+                print('No more frames available... Quitting!')
+                quit()
+
+            vcap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            status, img = vcap.read()
+
+            if not status:
+                quit()
+
+        timestamp = datetime.now(timezone.utc)
+
+        q.put( (timestamp, vcap.get(cv2.CAP_PROP_LRF_HAS_KEY_FRAME), img) )
+
+        end_time = time.perf_counter()
+        duration = (end_time - start_time)
+        timeout = max(0, (frame_rate - duration))
+        time.sleep(timeout)
 
 def frame_worker():
     while True:
@@ -161,30 +189,18 @@ if not status:
 
 #Starting worker threads
 for i in range(num_threads):
-    worker = threading.Thread(target=frame_worker, args=())
-    worker.setDaemon(True)
+    worker = threading.Thread(target=frame_worker, daemon=True)
     worker.start()
+
+# Calculate frame rate timeout
+if frame_rate > 0:
+    frame_rate = 1 / frame_rate
 
 print('Start video capture...')
 
-mqttc.loop_start()
+video_capture = threading.Thread(target=video_capture, daemon=True)
+video_capture.start()
 
-while(1):
-    status, img = vcap.read()
+mqttc.loop_forever()
 
-    if not status:
-        # Loop video is applicable
-        if not args.get('loop'):
-            print('No more frames available... Quitting!')
-            quit()
-
-        vcap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-        status, img = vcap.read()
-
-        if not status:
-            quit()
-
-    timestamp = datetime.now(timezone.utc)
-
-    q.put( (timestamp, vcap.get(cv2.CAP_PROP_LRF_HAS_KEY_FRAME), img) )
-    
+video_capture.stop()
