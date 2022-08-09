@@ -61,6 +61,7 @@ mqtt_username = args.get('mqtt_username')
 mqtt_password = args.get('mqtt_password')
 num_threads = args.get('threads')
 perf_stats = args.get('perf_stats')
+debug = args.get('debug')
 hwaccel = args.get('hw')
 
 mqtt_topic = ''.join([header, "/", topic, "/", instance_id])
@@ -111,7 +112,7 @@ def frame_worker():
         timestamp_str = timestamp.isoformat(timespec='milliseconds')
 
         mqtt_payload = {"timestamp":timestamp_str,"id":instance_id,"height":height,"width":width,"frame":jpg}
-        mqttc.publish(mqtt_topic, json.dumps(mqtt_payload))
+        mqttc.publish(mqtt_topic, json.dumps(mqtt_payload), qos=0, retain=False)
 
         q.task_done()
 
@@ -121,6 +122,7 @@ def frame_worker():
 
 def on_connect(mqttc, obj, flags, rc):
     print("MQTT connected...")
+    mqttc.subscribe(command_topic, 0)
 
 def on_message(mqttc, obj, msg):
     topic = msg.topic
@@ -131,7 +133,7 @@ def on_message(mqttc, obj, msg):
             return
 
         image_payload = {'timestamp':curr_timestamp.isoformat(timespec='milliseconds').replace("+00:00", "Z"), 'id':instance_id, 'image':curr_frame}
-        mqttc.publish(image_topic, json.dumps(image_payload))
+        mqttc.publish(image_topic, json.dumps(image_payload), qos=0, retain=False)
 
 mqttc = mqtt.Client()
 mqttc.on_connect = on_connect
@@ -143,7 +145,6 @@ if args.get('mqtt_tls'):
     mqttc.tls_insecure_set(True)
 
 mqttc.connect(mqtt_address, int(mqtt_port), 60)
-mqttc.subscribe(command_topic, 0)
 
 # Limit OpenCV thread pool
 cv2.setNumThreads(num_threads)

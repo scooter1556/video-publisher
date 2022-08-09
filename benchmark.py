@@ -43,14 +43,6 @@ mqtt_password = args.get('mqtt_password')
 # Message counter
 count = 0
 
-def MPS():
-    global count
-
-    while True:
-        print('MPS:', count)
-        count = 0
-        sleep(1)
-
 #
 # Create MQTT client
 #
@@ -94,9 +86,11 @@ mqttc.subscribe(topic, 0)
 
 print('Start benchmarking...')
 
-mps_printer = Thread(target=MPS, daemon=True)
-mps_printer.start()
+mqttc.loop_start()
 
-mqttc.loop_forever()
+while True:
+    count = 0
+    sleep(1)
+    print('MPS:', count)
 
 mps_printer.stop()
