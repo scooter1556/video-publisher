@@ -32,6 +32,7 @@ parser.add_argument('--mqtt_port', required=False, default=1883, help='MQTT port
 parser.add_argument('--mqtt_username', required=False, default='',  help='MQTT username.')
 parser.add_argument('--mqtt_password', required=False, default='',  help='MQTT password.')
 parser.add_argument('--mqtt_tls', default=False, action='store_true', help='use TLS communication for MQTT')
+parser.add_argument('--perf_stats', default=False, action='store_true', help='Print detailed performance statistics')
 args = vars(parser.parse_args())
 
 topic = args.get('input')
@@ -39,9 +40,11 @@ mqtt_address = args.get('mqtt_address')
 mqtt_port = args.get('mqtt_port')
 mqtt_username = args.get('mqtt_username')
 mqtt_password = args.get('mqtt_password')
+perf_stats = args.get('perf_stats')
 
 # Message counter
 count = 0
+total_latency = 0
 
 #
 # Create MQTT client
@@ -52,6 +55,7 @@ def on_connect(mqttc, obj, flags, rc):
 
 def on_message(mqttc, obj, msg):
     global count
+    global total_latency
 
     topic = msg.topic
     payload = msg.payload.decode("utf-8")
@@ -69,8 +73,10 @@ def on_message(mqttc, obj, msg):
         timestamp_now = datetime.now(timezone.utc)
         
         delta = timestamp_now - timestamp
-        
-        print("Latency:", delta.total_seconds())
+        total_latency += delta.total_seconds()
+
+        if perf_stats:
+            print("Latency:", delta.total_seconds())
 
 mqttc = mqtt.Client()
 mqttc.on_connect = on_connect
@@ -90,7 +96,13 @@ mqttc.loop_start()
 
 while True:
     count = 0
-    sleep(1)
-    print('MPS:', count)
+    total_latency = 0
 
-mps_printer.stop()
+    sleep(1)
+
+    average_latency = 0
+
+    if count > 0:
+        average_latency = total_latency / count
+
+    print('Message Per Second:', count, " ", 'Average Latency:', round(average_latency, 3))
