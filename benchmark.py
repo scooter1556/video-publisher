@@ -24,7 +24,7 @@ from dateutil.parser import isoparse
 from threading import Thread
 from time import sleep
 
-parser = argparse.ArgumentParser(description='Video Publisher')
+parser = argparse.ArgumentParser(description='Video publisher benchmark utility')
 
 parser.add_argument('--input',required=False, default='videopub/stream/#', help='Specify the video input')
 parser.add_argument('--mqtt_address', required=False, default='localhost',  help='MQTT broker address. default: localhost')
