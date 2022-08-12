@@ -73,6 +73,8 @@ curr_frame = None
 curr_timestamp = None
 
 def frame_worker():
+    global curr_frame, curr_timestamp
+
     while True:
         data = q.get()
 
