@@ -131,6 +131,7 @@ RUN ldconfig
 
 WORKDIR /app
 
-RUN python3 -m pip install -r requirements-docker.txt && \
+RUN python3 -m pip install --upgrade pip && \
+    python3 -m pip install -r requirements-docker.txt && \
     python3 -m pip install /*.whl && \
     rm /*.whl

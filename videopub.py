@@ -105,9 +105,8 @@ def frame_worker():
             duration = (end_time - start_time) * 1000
             print('Processing time: {:.2f} ms; speed {:.2f} fps'.format(round(duration, 2), round(1000 / duration, 2)))
 
-        if key_frame > 0:
-            curr_frame = jpg
-            curr_timestamp = timestamp
+        curr_frame = jpg
+        curr_timestamp = timestamp
 
         timestamp_str = timestamp.isoformat(timespec='milliseconds')
 
