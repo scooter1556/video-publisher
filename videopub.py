@@ -32,8 +32,7 @@ parser = argparse.ArgumentParser(description='Video Publisher')
 
 parser.add_argument('--input',required=False, default='/dev/video0', help='Specify the video input')
 parser.add_argument('--loop', default=False, action='store_true', help='Loop input video')
-parser.add_argument('--header', required=False, default='videopub', help='Specify the MQTT topic header')
-parser.add_argument('--topic', required=False, default='stream', help='Specify the MQTT topic') 
+parser.add_argument('--topic', required=False, default='videopub/stream', help='Specify the MQTT topic')
 parser.add_argument('--id', required=True, help='Unique stream identifier for MQTT topic')
 parser.add_argument('--width', required=False, help='Specify desired input image width', type=int)
 parser.add_argument('--height', required=False, help='Specify desired input image height', type=int)
@@ -50,7 +49,6 @@ parser.add_argument('--hw', default=False, action='store_true', help='Use hardwa
 args = vars(parser.parse_args())
 
 instance_id = args.get('id')
-header = args.get('header')
 topic = args.get('topic')
 scale_width = args.get('width')
 scale_height = args.get('height')
@@ -64,9 +62,9 @@ perf_stats = args.get('perf_stats')
 debug = args.get('debug')
 hwaccel = args.get('hw')
 
-mqtt_topic = ''.join([header, "/", topic, "/", instance_id])
-command_topic = ''.join([header, "/", "cmd", "/", "sensor", "/", "cam", "/", instance_id])
-image_topic = ''.join([header, "/", "image", "/", "sensor", "/", "cam", "/", instance_id])
+mqtt_topic = ''.join([topic, "/", instance_id])
+command_topic = ''.join([topic, "/", "cmd", "/", "sensor", "/", "cam", "/", instance_id])
+image_topic = ''.join([topic, "/", "image", "/", "sensor", "/", "cam", "/", instance_id])
 
 # Camera frame & timestamp
 curr_frame = None
@@ -112,7 +110,7 @@ def frame_worker():
 
         timestamp_str = timestamp.isoformat(timespec='milliseconds')
 
-        mqtt_payload = {"timestamp":timestamp_str,"id":instance_id,"height":height,"width":width,"frame":jpg}
+        mqtt_payload = {"dtype":"image/jpeg", "timestamp":timestamp_str,"id":instance_id,"height":height,"width":width,"data":jpg}
         mqttc.publish(mqtt_topic, json.dumps(mqtt_payload), qos=0, retain=False)
 
         q.task_done()
@@ -178,7 +176,7 @@ mqttc.loop_start()
 
 while(1):
     start_time = time.perf_counter()
-    status, img = vcap.read()
+    status, frame = vcap.read()
 
     if not status:
         # Loop video is applicable
@@ -187,14 +185,14 @@ while(1):
             quit()
 
         vcap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-        status, img = vcap.read()
+        status, frame = vcap.read()
 
         if not status:
             quit()
 
     timestamp = datetime.now(timezone.utc)
 
-    q.put( (timestamp, vcap.get(cv2.CAP_PROP_LRF_HAS_KEY_FRAME), img) )
+    q.put( (timestamp, vcap.get(cv2.CAP_PROP_LRF_HAS_KEY_FRAME), frame) )
 
     end_time = time.perf_counter()
     duration = (end_time - start_time)
