@@ -32,7 +32,7 @@ parser = argparse.ArgumentParser(description='Video Publisher')
 
 parser.add_argument('--input',required=False, default='/dev/video0', help='Specify the video input')
 parser.add_argument('--loop', default=False, action='store_true', help='Loop input video')
-parser.add_argument('--topic', required=False, default='videopub/stream', help='Specify the MQTT topic')
+parser.add_argument('--topic', required=False, default='scenescape/stream/sensor/cam', help='Specify the MQTT topic')
 parser.add_argument('--id', required=True, help='Unique stream identifier for MQTT topic')
 parser.add_argument('--width', required=False, help='Specify desired input image width', type=int)
 parser.add_argument('--height', required=False, help='Specify desired input image height', type=int)
@@ -63,8 +63,8 @@ debug = args.get('debug')
 hwaccel = args.get('hw')
 
 mqtt_topic = ''.join([topic, "/", instance_id])
-command_topic = ''.join([topic, "/", "cmd", "/", "sensor", "/", "cam", "/", instance_id])
-image_topic = ''.join([topic, "/", "image", "/", "sensor", "/", "cam", "/", instance_id])
+command_topic = ''.join(["scenescape/", "cmd", "/", "sensor", "/", "cam", "/", instance_id])
+image_topic = ''.join(["scenescape/", "image", "/", "sensor", "/", "cam", "/", instance_id])
 
 # Camera frame & timestamp
 curr_frame = None
