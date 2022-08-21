@@ -63,12 +63,6 @@ debug = args.get('debug')
 hwaccel = args.get('hw')
 
 mqtt_topic = ''.join([topic, "/", instance_id])
-command_topic = ''.join([topic, "/", "cmd", "/", "sensor", "/", "cam", "/", instance_id])
-image_topic = ''.join([topic, "/", "image", "/", "sensor", "/", "cam", "/", instance_id])
-
-# Camera frame & timestamp
-curr_frame = None
-curr_timestamp = None
 
 def frame_worker():
     global curr_frame, curr_timestamp
@@ -105,9 +99,6 @@ def frame_worker():
             duration = (end_time - start_time) * 1000
             print('Processing time: {:.2f} ms; speed {:.2f} fps'.format(round(duration, 2), round(1000 / duration, 2)))
 
-        curr_frame = jpg
-        curr_timestamp = timestamp
-
         timestamp_str = timestamp.isoformat(timespec='milliseconds')
 
         mqtt_payload = {"dtype":"image/jpeg", "timestamp":timestamp_str,"id":instance_id,"height":height,"width":width,"data":jpg}
@@ -121,22 +112,9 @@ def frame_worker():
 
 def on_connect(mqttc, obj, flags, rc):
     print("MQTT connected...")
-    mqttc.subscribe(command_topic, 0)
-
-def on_message(mqttc, obj, msg):
-    topic = msg.topic
-    payload = msg.payload.decode("utf-8")
-
-    if payload == 'getimage':
-        if curr_frame is None:
-            return
-
-        image_payload = {'timestamp':curr_timestamp.isoformat(timespec='milliseconds').replace("+00:00", "Z"), 'id':instance_id, 'image':curr_frame}
-        mqttc.publish(image_topic, json.dumps(image_payload), qos=0, retain=False)
 
 mqttc = mqtt.Client()
 mqttc.on_connect = on_connect
-mqttc.on_message = on_message
 mqttc.username_pw_set(mqtt_username,mqtt_password)
 
 if args.get('mqtt_tls'):
