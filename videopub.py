@@ -101,7 +101,7 @@ def frame_worker():
 
         timestamp_str = timestamp.isoformat(timespec='milliseconds')
 
-        mqtt_payload = {"dtype":"image/jpeg", "timestamp":timestamp_str,"id":instance_id,"height":height,"width":width,"data":jpg}
+        mqtt_payload = {"dtype":"image/jpeg", "timestamp":timestamp_str,"src_id":instance_id,"height":height,"width":width,"data":jpg}
         mqttc.publish(mqtt_topic, json.dumps(mqtt_payload), qos=0, retain=False)
 
         q.task_done()
